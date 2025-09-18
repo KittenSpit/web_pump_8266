@@ -1,5 +1,8 @@
 <!doctype html>
+<head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Doser</title>
 <style>
   :root{--bg:#f8fafc;--card:#fff;--b:#e5e7eb;--txt:#111827;--mut:#6b7280;--acc:#2563eb}
@@ -18,15 +21,37 @@
   .mut{color:var(--mut);font-size:12px}
   .pill{display:inline-block;padding:4px 8px;border:1px solid var(--b);border-radius:999px;font-size:12px}
   .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px}
+  .status-table th, .status-table td { padding:6px; }
+.status-table td:nth-child(3),
+.status-table td:nth-child(4),
+.status-table td:nth-child(5) { text-align:right; }
 </style>
+</head>
 
 <h1>ESP8266 Doser</h1>
 <div class="grid">
-  <div class="card">
+<div class="card">
+  <div class="row" style="justify-content:space-between;align-items:baseline">
     <h3>Status</h3>
-    <div  id="statusArea" class="mut kbd">connecting...</div>
-    <div class="mut"><br>Next run per pump updates live. Times are local.</div>
+    <div class="mut kbd" id="clock">—</div>
   </div>
+  <div class="mut">Next run per pump updates live. Times are local.</div>
+
+  <table id="statusTable" class="status-table">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Pump</th>
+        <th style="text-align:left;">State</th>
+        <th style="text-align:right;">Delivered</th>
+        <th style="text-align:right;">Next (countdown)</th>
+        <th style="text-align:right;">Next (time)</th>
+      </tr>
+    </thead>
+    <tbody id="statusBody">
+      <tr><td colspan="5" class="mut">connecting…</td></tr>
+    </tbody>
+  </table>
+</div>
 
   <div class="card">
     <h3>Wi-Fi / System</h3>
@@ -56,6 +81,7 @@ let settings = null;
 let lastStatus = null;
 const NUM_PUMPS = 3;
 const MAX_TIMES = 8;
+const nextAtMs = Object.create(null); // map: pumpIdx -> epoch ms or null
 
 function secToHHMM(sec){
   let h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
@@ -72,6 +98,18 @@ function HHMMtoSec(hhmm){
   m = Math.max(0, Math.min(59, m|0));
   return h*3600 + m*60;
 }
+
+function updateClock(){
+  const el = document.getElementById('clock');
+  if (!el) return;
+  const now = new Date();
+  el.textContent = new Intl.DateTimeFormat(undefined, {
+    weekday:'short', month:'short', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit'
+  }).format(now);
+}
+setInterval(updateClock, 1000);
+updateClock();
 
 function pumpCard(i){
   return `
@@ -104,7 +142,7 @@ function pumpCard(i){
             <td>${t+1}</td>
             <td><input id="time_${i}_${t}" type="time" value="00:00"></td>
             <td><input id="dose_${i}_${t}" type="number" min="0" step="0.1" style="width:90px" value="0"></td>
-            <td><button onclick="delTime(${i},${t})">xx</button></td>
+            <td><button onclick="delTime(${i},${t})">clr</button></td>
           </tr>
         `).join('')}
       </tbody>
@@ -197,31 +235,108 @@ function doPrime(i){ postJSON('/api/prime',{idx:i,sec:3}); }
 function doPurge(i){ postJSON('/api/purge',{idx:i,sec:2}); }
 function doStop(i){ postJSON('/api/stop', {idx:i}); }
 
+// --- STATUS TABLE WIRING ---
+let lastS = null, lastSyncMs = 0, ticker = null;
+
 function applyStatus(s){
-  lastStatus = s;
-  const lines = [];
+  lastS = s;
+  lastSyncMs = performance.now();
+
+  const nowMs = Date.now();
   const pumps = Array.isArray(s?.pumps) ? s.pumps : [];
-
   pumps.forEach(p=>{
-    const start = p.start_ms|0, dur = p.dur_ms|0, up = (s.uptime_ms|0);
-    const msLeft = Math.max(0, (start + dur) - up);
-    const secLeft = Math.ceil(msLeft/1000);
-
-    const nextTxt   = formatDuration(p.next_run_s ?? -1);
-    const delivered = (p.delivered_ml ?? 0).toFixed(1);
-
-    lines.push(
-      `Pump ${p.idx}: ${p.running ? 'RUNNING → '+formatRunningCountdown(secLeft) : 'idle'} | ` +
-      `delivered ~${delivered} ml | next ${nextTxt}`
-    );
-
-    const pill = document.getElementById('next_'+p.idx);
-    if (pill) pill.textContent = `next: ${nextTxt}`;
+    if ((p.next_run_s ?? -1) >= 0) {
+      nextAtMs[p.idx] = nowMs + (Number(p.next_run_s) || 0) * 1000;
+    } else {
+      nextAtMs[p.idx] = null;
+    }
   });
 
-  const area = document.getElementById('statusArea');
-  area.innerHTML = lines.length ? lines.join('<br>') : 'No pump data yet…';
+  if (!ticker) ticker = setInterval(renderStatus, 1000);
+  renderStatus();
 }
+
+
+function renderStatus(){
+  if (!lastS) return;
+
+  const ageSec = Math.floor((performance.now() - lastSyncMs) / 1000);
+  const s = lastS;
+  const pumps = Array.isArray(s?.pumps) ? s.pumps : [];
+
+  // Build rows
+  let rows = '';
+  pumps.forEach(p=>{
+    const start = Number(p.start_ms) ||0
+    const dur = Number(p.dur_ms) || 0
+    const upNow = (Number(s.uptime_ms) || 0) + ageSec*1000;
+
+  // running countdown (clamp last second)
+const msLeft   = Math.max(0, (start + dur) - upNow);
+const secLeft  = msLeft <= 1000 ? 0 : Math.ceil(msLeft / 1000);
+const runningNow = !!p.running && secLeft > 0;
+
+// ===== Next-run (stable, no oscillation) =====
+let nextCountdown = 'na';
+let nextAbs = '—';
+
+const target = nextAtMs[p.idx]; // may be null
+if (target != null) {
+  let remMs = target - Date.now();
+
+  // Grace window: collapse sub-500ms jitter to zero to avoid 0/1s flap
+  if (remMs < 500) remMs = 0;
+
+  const nextSec = Math.max(0, Math.floor(remMs / 1000));
+  nextCountdown = formatDuration(nextSec);
+
+  // Only show absolute clock if it's not imminently due (prevents bounce)
+  nextAbs = remMs >= 2000
+    ? new Date(target).toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' })
+    : '—';
+}
+
+
+const stateTxt      = runningNow ? 'RUNNING → ' + formatRunningCountdown(secLeft) : 'idle';
+const deliveredTxt  = `~${(p.delivered_ml ?? 0).toFixed(1)} ml`;
+//const nextCountdown = hasNext ? formatDuration(nextSec) : 'na';
+//const nextAbs       = hasNext && nextSec > 0 ? formatClockFromNow(nextSec) : '—';
+
+// build row (and pill if you still use it)
+    rows += `<tr>
+      <td class="kbd">#${p.idx}</td>
+      <td>${stateTxt}</td>
+      <td class="kbd">${deliveredTxt}</td>
+      <td class="kbd">${nextCountdown}</td>
+      <td class="kbd">${nextAbs}</td>
+    </tr>`;
+
+    // keep pills in sync if present
+    const pill = document.getElementById('next_'+p.idx);
+    if (pill) pill.textContent = `next: ${nextCountdown}`;
+  });
+
+  // Prefer the table; if it's missing, fall back to legacy statusArea (safe no-op otherwise)
+  const tbody = document.getElementById('statusBody');
+  if (tbody) {
+    tbody.innerHTML = pumps.length ? rows : `<tr><td colspan="5" class="mut">No pump data yet…</td></tr>`;
+  }
+  const area = document.getElementById('statusArea');
+  if (area && !tbody) {
+    // Legacy fallback to keep something visible
+    area.innerHTML = pumps.length
+      ? rows.replace(/<tr>|<\/tr>/g,'').replace(/<td[^>]*>/g,'').replace(/<\/td>/g,' | ')
+      : 'No pump data yet…';
+  }
+}
+
+// Absolute clock for "Next (time)"
+function formatClockFromNow(sec){
+  if (!Number.isFinite(sec) || sec <= 0) return '—';
+  const t = new Date(Date.now() + sec*1000);
+  return t.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+}
+
 
 
 let sock=null;
@@ -246,6 +361,9 @@ function formatDuration(totalSeconds) {
   if (totalSeconds < 60) {
     // Under a minute → seconds only
     return `${s}s`;
+  } else if (totalSeconds < 300) {
+    // Hours → show h + m (ignore seconds)
+    return `${m}m ${s}s`;
   } else if (h > 0) {
     // Hours → show h + m (ignore seconds)
     return `${h}h ${m}m`;
