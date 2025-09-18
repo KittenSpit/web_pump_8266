@@ -9,14 +9,20 @@
 
 // ==== PWM SHIM (ESP8266 + ESP32, 0..255 duty) ====
 #ifdef ARDUINO_ARCH_ESP8266
-  inline void pwmSetup(uint8_t /*ch*/, uint16_t freqHz = 1000, uint16_t range = 255) {
+  inline void pwmSetup(uint8_t /*ch*/, uint16_t freqHz = 20000, uint16_t range = 255) {
     analogWriteFreq(freqHz);
     analogWriteRange(range);            // duty will be 0..255
   }
   inline void pwmAttachPin(uint8_t pin, uint8_t /*ch*/) { pinMode(pin, OUTPUT); }
-  inline void pwmWrite(uint8_t /*ch*/, uint16_t duty, uint8_t pin) { analogWrite(pin, duty); }
+  inline void pwmWrite(uint8_t /*ch*/, uint16_t duty, uint8_t pin) { analogWrite(pin, duty); 
+
+  Serial.print(pin);
+   Serial.print("   ");
+    Serial.println(duty);
+   }
+
 #else
-  inline void pwmSetup(uint8_t ch, uint32_t freqHz = 1000, uint8_t bits = 8) { ledcSetup(ch, freqHz, bits); }
+  inline void pwmSetup(uint8_t ch, uint32_t freqHz = 20000, uint8_t bits = 8) { ledcSetup(ch, freqHz, bits); }
   inline void pwmAttachPin(uint8_t pin, uint8_t ch) { ledcAttachPin(pin, ch); }
   inline void pwmWrite(uint8_t ch, uint32_t duty, uint8_t /*pin*/) { ledcWrite(ch, duty); }
 #endif
@@ -42,7 +48,7 @@ void PumpControl::writePump(uint8_t idx, bool on, bool reverse) {
   // One-time PWM init for this channel/pin
   if (!s_pwmInited[idx]) {
     pinMode(_pins[idx].dir, OUTPUT);
-    pwmSetup(idx, 1000 /*Hz*/, 255 /*8-bit duty range*/);
+    pwmSetup(idx, 20000 /*Hz*/, 255 /*8-bit duty range*/);
     pwmAttachPin(_pins[idx].pwm, idx);
     s_pwmInited[idx] = true;
   }
@@ -67,7 +73,7 @@ void PumpControl::startPump(uint8_t idx, bool reverse, uint16_t seconds) {
   // One-time PWM setup/attach for this channel/pin
   if (!s_pwmInited[idx]) {
     pinMode(_pins[idx].dir, OUTPUT);
-    pwmSetup(idx, 1000 /*Hz*/, 255 /*8-bit duty range*/);
+    pwmSetup(idx, 20000 /*Hz*/, 255 /*8-bit duty range*/);
     pwmAttachPin(_pins[idx].pwm, idx);
     s_pwmInited[idx] = true;
   }
