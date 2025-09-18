@@ -19,7 +19,7 @@ struct PumpConfig {
 struct Settings {
   char wifiSsid[32]   = "PHD1 2.4";
   char wifiPass[64]   = "Andrew1Laura2";
-  char hostname[32]   = "esp32-doser";
+  char hostname[32]   = "Esp32-doser";
   PumpConfig pump[NUM_PUMPS];
   uint16_t tzOffsetMinutes =  -240; // EDT default, will be adjusted via TZ string anyway
   bool useDST = true;

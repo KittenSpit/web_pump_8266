@@ -20,11 +20,11 @@
   .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px}
 </style>
 
-<h1>ESP32 Doser</h1>
+<h1>ESP8266 Doser</h1>
 <div class="grid">
   <div class="card">
     <h3>Status</h3>
-    <div  id="statusArea" class="mut">connecting...</div>
+    <div  id="statusArea" class="mut kbd">connecting...</div>
     <div class="mut"><br>Next run per pump updates live. Times are local.</div>
   </div>
 
@@ -61,9 +61,16 @@ function secToHHMM(sec){
   let h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60);
   return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
 }
+
 function HHMMtoSec(hhmm){
-  const [h,m] = hhmm.split(':').map(x=>parseInt(x||'0',10));
-  return (h*3600 + m*60) | 0;
+  if (!hhmm || typeof hhmm !== 'string') return 0;
+  const [hStr='0', mStr='0'] = hhmm.split(':');
+  let h = parseInt(hStr, 10), m = parseInt(mStr, 10);
+  if (!Number.isFinite(h)) h = 0;
+  if (!Number.isFinite(m)) m = 0;
+  h = Math.max(0, Math.min(23, h|0));
+  m = Math.max(0, Math.min(59, m|0));
+  return h*3600 + m*60;
 }
 
 function pumpCard(i){
@@ -193,31 +200,70 @@ function doStop(i){ postJSON('/api/stop', {idx:i}); }
 function applyStatus(s){
   lastStatus = s;
   const lines = [];
-  s.pumps.forEach(p=>{
-    const msLeft = Math.max(0, (p.start_ms + p.dur_ms) - s.uptime_ms);
+  const pumps = Array.isArray(s?.pumps) ? s.pumps : [];
+
+  pumps.forEach(p=>{
+    const start = p.start_ms|0, dur = p.dur_ms|0, up = (s.uptime_ms|0);
+    const msLeft = Math.max(0, (start + dur) - up);
     const secLeft = Math.ceil(msLeft/1000);
-    const nextTxt = (p.next_run_s<0) ? 'na' : `${Math.floor(p.next_run_s/3600)}h ${Math.floor((p.next_run_s%3600)/60)}m`;
- 
+
+    const nextTxt   = formatDuration(p.next_run_s ?? -1);
+    const delivered = (p.delivered_ml ?? 0).toFixed(1);
+
     lines.push(
-      `Pump ${p.idx}: ${p.running?'RUNNING -> '+secLeft+'s': 'idle'} | `+
-      `delivered ~${p.delivered_ml.toFixed(1)} ml | next ${nextTxt}`
+      `Pump ${p.idx}: ${p.running ? 'RUNNING → '+formatRunningCountdown(secLeft) : 'idle'} | ` +
+      `delivered ~${delivered} ml | next ${nextTxt}`
     );
+
     const pill = document.getElementById('next_'+p.idx);
     if (pill) pill.textContent = `next: ${nextTxt}`;
   });
-  statusArea.innerHTML = lines.join('<br>');
+
+  const area = document.getElementById('statusArea');
+  area.innerHTML = lines.length ? lines.join('<br>') : 'No pump data yet…';
 }
+
 
 let sock=null;
 function connectWS(){
-  sock = new WebSocket(`ws://${location.host}/ws`);
+  const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+  sock = new WebSocket(`${scheme}://${location.host}/ws`);
   sock.onopen = ()=> { /* auto status push every 1s */ };
   sock.onmessage = (ev)=> {
-    try{ applyStatus(JSON.parse(ev.data)); }catch(e){}
+    try { applyStatus(JSON.parse(ev.data)); }
+    catch (e) { console.error('Bad WS JSON:', e, ev.data); }
   };
   sock.onclose = ()=> setTimeout(connectWS, 1000);
 }
 
+function formatDuration(totalSeconds) {
+  if (totalSeconds < 0) return 'na';
+
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+
+  if (totalSeconds < 60) {
+    // Under a minute → seconds only
+    return `${s}s`;
+  } else if (h > 0) {
+    // Hours → show h + m (ignore seconds)
+    return `${h}h ${m}m`;
+  } else {
+    // Only minutes
+    return `${m}m`;
+  }
+}
+
+
+function formatRunningCountdown(totalSeconds){
+  totalSeconds = Math.max(0, totalSeconds|0);
+  const h = Math.floor(totalSeconds/3600);
+  const m = Math.floor((totalSeconds%3600)/60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
 renderPumpCards();
 loadSettings();
 connectWS();
