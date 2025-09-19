@@ -86,7 +86,7 @@ void setup() {
   printCurrentTimeInfo();
   Serial.printf("secSinceMidnight = %u\n", secondsSinceMidnight());
 
-
+Logger::begin();        // create /logs.csv with header if missing
   pumpCtl.begin(PINS);
   scheduler.begin();
   webserverBegin();

@@ -27,7 +27,10 @@ public:
 
   void stop(uint8_t idx);
   bool isRunning(uint8_t idx) const;
-  const PumpRuntime& state(uint8_t idx) const { return _state[idx]; }
+  const PumpRuntime& state(uint8_t idx) const { return _state[idx];
+
+   }
+
 
 private:
   PumpPins _pins[NUM_PUMPS];

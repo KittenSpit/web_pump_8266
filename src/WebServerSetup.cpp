@@ -206,6 +206,46 @@ server.on("/api/settings", HTTP_POST,
       wsBroadcastStatus();
     });
 
+
+
+// ... after LittleFS.begin() succeeds and server is constructed ...
+
+// Full CSV download
+server.on("/logs.csv", HTTP_GET, [](AsyncWebServerRequest* req){
+  Logger::begin();  // ensure header exists
+  if (!Logger::exists()) {
+    req->send(404, "text/plain; charset=utf-8", "no logs");
+    return;
+  }
+  auto* res = req->beginResponse(LittleFS, "/logs.csv", "text/csv; charset=utf-8");
+  res->addHeader("Cache-Control", "no-store");
+  // res->addHeader("Content-Disposition","attachment; filename=\"logs.csv\"");
+  req->send(res);
+});
+
+// Tail last N lines (text)
+server.on("/api/logs/tail", HTTP_GET, [](AsyncWebServerRequest* req){
+  Logger::begin();
+  size_t n = 200;
+  if (req->hasParam("n")) {
+    int v = req->getParam("n")->value().toInt();
+    if (v < 1) v = 1; if (v > 2000) v = 2000;
+    n = (size_t)v;
+  }
+  String txt = Logger::tail(n);
+  if (!txt.length()) txt = F("no logs");
+  auto* res = req->beginResponse(200, "text/plain; charset=utf-8", txt);
+  res->addHeader("Cache-Control", "no-store");
+  req->send(res);
+});
+
+// Clear logs
+server.on("/api/logs/clear", HTTP_POST, [](AsyncWebServerRequest* req){
+  Logger::clear();
+  req->send(200, "text/plain; charset=utf-8", "ok");
+});
+
+
   // OTA
  // AsyncElegantOTA.begin(&server);
 
