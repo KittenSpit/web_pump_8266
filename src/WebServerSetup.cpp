@@ -15,6 +15,7 @@
 
 #include "WebServerSetup.h"
 #include "Logger.h"
+
 // Adjust as you like
 static AsyncWebServer server(80);
 
@@ -229,7 +230,8 @@ server.on("/api/logs/tail", HTTP_GET, [](AsyncWebServerRequest* req){
   size_t n = 200;
   if (req->hasParam("n")) {
     int v = req->getParam("n")->value().toInt();
-    if (v < 1) v = 1; if (v > 2000) v = 2000;
+    if (v < 1) v = 1; 
+    if (v > 2000) v = 2000;
     n = (size_t)v;
   }
   String txt = Logger::tail(n);
@@ -240,8 +242,10 @@ server.on("/api/logs/tail", HTTP_GET, [](AsyncWebServerRequest* req){
 });
 
 // Clear logs
-server.on("/api/logs/clear", HTTP_POST, [](AsyncWebServerRequest* req){
+server.on("/api/logs/clear", HTTP_GET, [](AsyncWebServerRequest* req){
+  Serial.println("Before Clear*");
   Logger::clear();
+  Serial.println("after Clear**");
   req->send(200, "text/plain; charset=utf-8", "ok");
 });
 

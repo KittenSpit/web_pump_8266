@@ -94,7 +94,9 @@ Logger::begin();        // create /logs.csv with header if missing
 
 void loop() {
   pumpCtl.loop();
+  delay(1);
   scheduler.loop();
+  delay(1);
   webserverLoop();
   delay(10);
 }
