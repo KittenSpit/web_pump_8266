@@ -15,6 +15,8 @@
 
 #include "WebServerSetup.h"
 #include "Logger.h"
+#include "LogRoutes.h"
+
 
 // Adjust as you like
 static AsyncWebServer server(80);
@@ -69,9 +71,15 @@ void webserverBegin() {
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
 
+ // Install routes (use defaults)
+  installLogRoutes(server);
+
   // Static files from LittleFS
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *req){
     req->send(LittleFS, "/index.html", "text/html");
+  });
+    server.on("/log_control", HTTP_GET, [](AsyncWebServerRequest *req){
+    req->send(LittleFS, "/doserlog.html", "text/html");
   });
 
   server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *req){

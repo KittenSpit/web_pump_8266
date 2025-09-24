@@ -4,7 +4,7 @@
 #include <LittleFS.h>
 #include <FS.h>
 #include <time.h>
-
+#include "LogRoutes.h"
 namespace {
   const char* kLogPath = "/logs.csv";
 }

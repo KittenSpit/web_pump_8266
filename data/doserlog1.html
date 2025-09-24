@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Doser Log Console</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#111827; --mut:#8ca3b0; --txt:#e5eef5; --acc:#60a5fa; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; --b:#233044;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1220,#0a0f1a);color:var(--txt);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    h1{font-size:24px;margin:0 0 12px}
+    .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
+    .panel{background:rgba(17,24,39,.75);backdrop-filter:saturate(180%) blur(6px);border:1px solid var(--b);border-radius:14px;box-shadow:0 10px 30px #0007}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .controls{padding:14px}
+    label{font-size:12px;color:var(--mut)}
+    input,select,button{appearance:none;border-radius:10px;border:1px solid var(--b);background:#0f172a;color:var(--txt);padding:10px 12px}
+    input::placeholder{color:#6b7280}
+    button{cursor:pointer;border-color:#1f2a3d}
+    .btn{background:#0d1b2a;border:1px solid #1f2a3d}
+    .btn:hover{background:#0f2236}
+    .btn.primary{background:linear-gradient(180deg,#1e3a8a,#1f2937);border-color:#2b3b5a}
+    .btn.primary:hover{filter:brightness(1.08)}
+    .btn.danger{background:linear-gradient(180deg,#7f1d1d,#111827);border-color:#7f1d1d}
+    .btn.danger:hover{filter:brightness(1.1)}
+    .stat{display:flex;gap:10px;align-items:center;color:var(--mut);font-size:12px}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--b);border-radius:999px;background:#0b1624}
+    .pill.ok{color:#86efac;border-color:#14532d}
+    .pill.warn{color:#fde68a;border-color:#713f12}
+    .pill.err{color:#fca5a5;border-color:#7f1d1d}
+    .tableWrap{overflow:auto;border-top:1px solid var(--b)}
+    table{width:100%;border-collapse:separate;border-spacing:0}
+    th,td{padding:10px 12px;border-bottom:1px solid #1f2a3d;vertical-align:top}
+    th{position:sticky;top:0;background:#0f172a;text-align:left;font-weight:600;color:#c7d2fe;z-index:1}
+    tr:hover td{background:#0c1422}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .mut{color:var(--mut)}
+    .right{margin-left:auto}
+    .badge{padding:2px 8px;border-radius:999px;border:1px solid var(--b);background:#0b1624;color:#a5b4fc;font-size:12px}
+    details{border-top:1px dashed var(--b);padding:10px 14px}
+    summary{cursor:pointer;color:var(--mut)}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>📈 Doser Log Console</h1>
+    <div class="sub">Trigger log actions, view entries, and filter/export — all client‑side. Edit endpoint paths below if yours differ.</div>
+
+    <div class="panel">
+      <div class="controls row">
+        <div>
+          <label>CSV Download API</label><br>
+          <input id="csvApi" size="34" value="/api/log.csv" />
+        </div>
+        <div>
+          <label>List (screen) API</label><br>
+          <input id="listApi" size="34" value="/api/log.json" />
+        </div>
+        <div>
+          <label>Clear API</label><br>
+          <input id="clearApi" size="28" value="/api/log_clear" />
+        </div>
+        <div class="right stat">
+          <span id="statusPill" class="pill">idle</span>
+          <span class="pill" id="countPill">0 rows</span>
+        </div>
+      </div>
+      <div class="controls row">
+        <button class="btn" id="btnRefresh">↻ Refresh & Display</button>
+        <a id="btnDownload" class="btn" href="/api/log.csv" download>⬇ Download CSV</a>
+        <button class="btn danger" id="btnClear">🧹 Clear Log…</button>
+        <div class="right row" style="align-items:center">
+          <div>
+            <label>Start</label><br>
+            <input type="datetime-local" id="fStart" />
+          </div>
+          <div>
+            <label>End</label><br>
+            <input type="datetime-local" id="fEnd" />
+          </div>
+          <div>
+            <label>Pump</label><br>
+            <select id="fPump"><option value="">All</option></select>
+          </div>
+          <div>
+            <label>Type</label><br>
+            <select id="fType"><option value="">All</option></select>
+          </div>
+          <div>
+            <label>Search</label><br>
+            <input id="fSearch" placeholder="text contains…" />
+          </div>
+          <button class="btn" id="btnExport">Export Filtered CSV</button>
+        </div>
+      </div>
+
+      <div class="tableWrap">
+        <table id="tbl">
+          <thead id="thead"><tr></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <details>
+        <summary>API response formats supported (click to expand)</summary>
+        <div class="mut">
+          <p>Works with any of the following:</p>
+          <ul>
+            <li><b>CSV</b> string (with or without a header). Delimiters: comma or semicolon. Newline‑separated rows.</li>
+            <li><b>JSON array</b> of objects (recommended).</li>
+            <li><b>Plain text</b> lines where each row is comma‑delimited.</li>
+          </ul>
+          <p>Tip: if you can expose a JSON endpoint (e.g. <code>/api/log.json</code>) that returns
+            <code>[{ts:"2025-09-21T16:30:00Z", pump:1, type:"RUN", ml:12.3, note:"ok"}, …]</code>, the parsing will be lossless.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    // === Configure / tweak here ===
+    const guessColumns = [
+      { key:"ts",   aliases:["ts","time","timestamp","date"], fmt: v=>fmtTs(v) },
+      { key:"pump", aliases:["pump","idx","pump_id","pumpidx"], fmt: v=>v },
+      { key:"type", aliases:["type","event","action","mode"], fmt: v=>v },
+      { key:"ml",   aliases:["ml","delivered_ml","amount","qty"], fmt: v=>v },
+      { key:"note", aliases:["note","status","msg","message"], fmt: v=>v },
+    ];
+
+    const el = id => document.getElementById(id);
+    const setBusy = (b, msg="") => { const p=el('statusPill'); p.textContent=b? (msg||'working…') : 'idle'; p.className='pill'+(b?' warn':''); };
+    const setCount = n => el('countPill').textContent = `${n} rows`;
+    const fmtTs = v => {
+      if (v == null || v === '') return '';
+      // Try parse iso/epoch; fall back to raw
+      let d;
+      if (/^\d{10}(?:\.\d+)?$/.test(String(v))) d = new Date(Number(v)*1000);
+      else if (/^\d{13}$/.test(String(v))) d = new Date(Number(v));
+      else d = new Date(v);
+      return isNaN(d) ? String(v) : d.toLocaleString();
+    };
+
+    let rows = [];   // canonical array of objects
+    let headers = []; // displayed header order
+
+    // Event wiring
+    //el('btnRefresh').addEventListener('click', refresh);
+    document.getElementByID('btnRefresh').addEventListener('click', refresh);
+    el('btnClear').addEventListener('click', onClear);
+    el('btnExport').addEventListener('click', exportFiltered);
+    ['fStart','fEnd','fPump','fType','fSearch'].forEach(i=> el(i).addEventListener('input', render));
+
+    // Initialize download link to current csvApi field
+    el('csvApi').addEventListener('input', e=>{ el('btnDownload').href = e.target.value.trim() || '#'; });
+    el('btnDownload').href = el('csvApi').value;
+
+    async function refresh(){
+      const url = el('listApi').value.trim();
+      if (!url) return alert('List API URL is empty');
+      setBusy(true,'fetching…');
+      try{
+        // If page is opened via file:// and the API field starts with /path, prefix with device origin
+        let fetchUrl = url;
+        if (url.startsWith('/')){
+          if (location.origin && location.origin.startsWith('http')) fetchUrl = location.origin + url;
+          else fetchUrl = 'http://192.168.1.82' + url; // change to your device IP if opening the HTML from file://
+        }
+        const res = await fetch(fetchUrl, { headers: { 'Accept': 'application/json, text/plain, text/csv, */*' } });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        const ct = res.headers.get('content-type') || '';
+        let data;
+        if (ct.includes('application/json')){
+          data = await res.json();
+          rows = normalizeFromJson(data);
+        } else {
+          const txt = await res.text();
+          rows = normalizeFromTextOrCsv(txt);
+        }
+        inferFilterOptions(rows);
+        render();
+      }catch(err){
+        console.error(err);
+        alert('Fetch failed: '+err.message);
+      }finally{ setBusy(false); }
+    }
+
+    function normalizeFromJson(arr){
+      if (!Array.isArray(arr)) return [];
+      return arr.map(o=>({
+        ts:  o.ts ?? o.time ?? o.timestamp ?? o.date ?? '',
+        pump:o.pump ?? o.idx ?? o.pump_id ?? o.pumpidx ?? '',
+        type:o.type ?? o.event ?? o.action ?? o.mode ?? '',
+        ml:  o.ml ?? o.delivered_ml ?? o.amount ?? o.qty ?? '',
+        note:o.note ?? o.status ?? o.msg ?? o.message ?? ''
+      }));
+    }
+
+    function normalizeFromTextOrCsv(txt){
+      if (!txt) return [];
+      const lines = txt.replace(/\r/g,'').trim().split(/\n+/).filter(Boolean);
+      if (lines.length === 0) return [];
+      // Detect delimiter: comma or semicolon
+      const delim = (lines[0].split(';').length > lines[0].split(',').length) ? ';' : ',';
+      // If header-like, use it; else assume common order
+      const head = lines[0].split(delim).map(s=>s.trim());
+      const headerLooksReal = head.some(h=>/ts|time|date|pump|type|ml|note|status|event|message|idx/i.test(h));
+      const startIdx = headerLooksReal ? 1 : 0;
+      const out = [];
+      // map indices by alias if header; else fallback: ts,pump,type,ml,note
+      let idxMap = {ts:0,pump:1,type:2,ml:3,note:4};
+      if (headerLooksReal){
+        const lower = head.map(h=>h.toLowerCase());
+        for(const c of guessColumns){
+          const i = lower.findIndex(h=> c.aliases.includes(h));
+          if (i>=0) idxMap[c.key]=i;
+        }
+      }
+      for (let i=startIdx; i<lines.length; i++){
+        const parts = safeSplit(lines[i], delim);
+        out.push({
+          ts:  parts[idxMap.ts]  ?? '',
+          pump:parts[idxMap.pump]?? '',
+          type:parts[idxMap.type]?? '',
+          ml:  parts[idxMap.ml]  ?? '',
+          note:parts[idxMap.note]?? ''
+        });
+      }
+      return out;
+    }
+
+    function safeSplit(line, delim){
+      // basic CSV splitter that respects simple quoted fields
+      const res=[]; let cur=''; let q=false;
+      for (let i=0;i<line.length;i++){
+        const ch=line[i];
+        if (ch==='"') { q=!q; continue; }
+        if (ch===delim && !q) { res.push(cur.trim()); cur=''; continue; }
+        cur+=ch;
+      }
+      res.push(cur.trim());
+      return res;
+    }
+
+    function inferFilterOptions(data){
+      const pumpSet = new Set();
+      const typeSet = new Set();
+      data.forEach(r=>{ if(String(r.pump).trim()!=='') pumpSet.add(String(r.pump)); if(String(r.type).trim()!=='') typeSet.add(String(r.type)); });
+      const pumpSel = el('fPump');
+      const typeSel = el('fType');
+      // reset options
+      pumpSel.innerHTML = '<option value="">All</option>' + Array.from(pumpSet).sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+      typeSel.innerHTML = '<option value="">All</option>' + Array.from(typeSet).sort().map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+    }
+
+    function render(){
+      const f = currentFilters();
+      const filtered = rows.filter(r=> passFilters(r,f));
+      setCount(filtered.length);
+      // headers
+      headers = ['ts','pump','type','ml','note'];
+      el('thead').innerHTML = `<tr>${headers.map(h=> `<th>${h.toUpperCase()}</th>`).join('')}</tr>`;
+      // body
+      const tb = el('tbody');
+      tb.innerHTML = filtered.map(r=>{
+        return `<tr>
+          <td class="kbd">${esc(fmtTs(r.ts))}</td>
+          <td>${esc(r.pump)}</td>
+          <td><span class="badge">${esc(r.type||'')}</span></td>
+          <td class="kbd">${esc(r.ml)}</td>
+          <td class="mut">${esc(r.note)}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function currentFilters(){
+      const s = el('fStart').value ? new Date(el('fStart').value) : null;
+      const e = el('fEnd').value ? new Date(el('fEnd').value)   : null;
+      return {
+        start: s && !isNaN(s) ? s : null,
+        end:   e && !isNaN(e) ? e : null,
+        pump:  el('fPump').value.trim(),
+        type:  el('fType').value.trim(),
+        q:     el('fSearch').value.trim().toLowerCase()
+      };
+    }
+
+    function passFilters(r,f){
+      // time window
+      if (f.start || f.end){
+        const d = new Date(r.ts);
+        if (!isNaN(d)){
+          if (f.start && d < f.start) return false;
+          if (f.end   && d > f.end)   return false;
+        }
+      }
+      if (f.pump && String(r.pump) !== f.pump) return false;
+      if (f.type && String(r.type) !== f.type) return false;
+      if (f.q){
+        const hay = `${r.ts}\n${r.pump}\n${r.type}\n${r.ml}\n${r.note}`.toLowerCase();
+        if (!hay.includes(f.q)) return false;
+      }
+      return true;
+    }
+
+    function exportFiltered(){
+      const f = currentFilters();
+      const filtered = rows.filter(r=> passFilters(r,f));
+      if (!filtered.length) return alert('No rows to export.');
+      const header = headers.join(',');
+      const body = filtered.map(r=> headers.map(h=> csvEscape(r[h] ?? '')).join(',')).join('
+');
+      const csv = header + '
+' + body + '
+';
+      const blob = new Blob([csv], {type:'text/csv'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'doser_filtered.csv';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'doser_filtered.csv';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+    }
+
+    function csvEscape(v){
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    }
+
+    function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c=> ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]) ); }
+
+    async function onClear(){
+      const url = el('clearApi').value.trim();
+      if (!url) return alert('Clear API URL is empty');
+      if (!confirm('Really clear the log on the device?')) return;
+      setBusy(true,'clearing…');
+      try{
+        const res = await fetch(url, { method:'POST' });
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+        el('statusPill').className='pill ok';
+        el('statusPill').textContent='cleared';
+        rows = [];
+        inferFilterOptions(rows);
+        render();
+      }catch(err){
+        console.error(err);
+        alert('Clear failed: '+err.message);
+      }finally{ setBusy(false); }
+    }
+
+    // Auto-load on first paint for convenience
+    document.addEventListener('DOMContentLoaded', ()=> setTimeout(refresh, 50));
+  </script>
+</body>
+</html>
