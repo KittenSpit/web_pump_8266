@@ -23,7 +23,8 @@
   -->
   <style>
     :root{
-      --bg:#0b1220; --panel:#111827; --mut:#95a3b5; --txt:#eaf1f7; --acc:#60a5fa; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; --b:#223044;
+      --bg:#0b1220; --panel:#111827; --mut:#95a3b5; --txt:#eaf1f7; --acc:#60a5fa; --ok:#22c55e;
+       --warn:#f59e0b; --err:#ef4444; --b:#223044; --stp:#c245c2; --prg:#a7f360; --run:#10b981; --inf:#3b82f6;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -58,6 +59,8 @@
     .tag-ok{color:var(--ok)}
     .tag-warn{color:var(--warn)}
     .tag-err{color:var(--err)}
+    .tag-stp{color:var(--stp)}
+    .tag-prg{color:var(--prg)}
     .th-sort{cursor:pointer}
     .th-sort .dir{opacity:.7;font-size:11px;margin-left:6px}
     .empty{padding:18px;color:#9ab}
@@ -281,7 +284,7 @@ async function fetchJson() {
           tr.innerHTML = `
             <td class="kbd" title="${t.toISOString()}">${fmtClock(t)}</td>
             <td class="kbd">${r.pump ?? '—'}</td>
-            <td class="kbd ${r.event==='err'?'tag-err': r.event==='warn'?'tag-warn': r.event==='prime' || r.event==='run' ? 'tag-ok':''}">${r.event||'—'}</td>
+            <td class="kbd ${r.event==='err'?'tag-err': r.event==='warn'?'tag-warn': r.event==='stop' ? 'tag-stp': r.event==='purge' ? 'tag-prg': r.event==='prime' || r.event==='run' ? 'tag-ok':''}">${r.event||'—'}</td>
             <td class="kbd">${Number.isFinite(r.ml)? r.ml.toFixed(2): '—'}</td>
             <td class="kbd" title="${r.dur??''} ms">${Number.isFinite(r.dur)? msToHMS(r.dur): '—'}</td>
             <td class="kbd">${r.mlps ?? '—'}</td>

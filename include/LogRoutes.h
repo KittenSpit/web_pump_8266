@@ -132,7 +132,7 @@ static void installLogRoutes(
 
     // Map column names -> index (case-insensitive)
     int idx_ts = -1, idx_uptime=-1, idx_event=-1, idx_pump=-1, idx_runtime=-1,
-        idx_mlps=-1, idx_ml=-1, idx_duty=-1, idx_dir=-1;
+        idx_mlps=-1, idx_ml=-1, idx_duty=-1, idx_dir=-1, idx_status=-1;
 
     for (size_t i=0;i<cols.size();++i) {
       String c = cols[i]; c.trim();
@@ -145,6 +145,7 @@ static void installLogRoutes(
       else if (indexOfIgnoreCase(c, "ml")       == 0 && idx_ml < 0) idx_ml = i; // first ml
       else if (indexOfIgnoreCase(c, "duty")     == 0) idx_duty = i;
       else if (indexOfIgnoreCase(c, "dir")      == 0) idx_dir = i;
+      else if (indexOfIgnoreCase(c, "status")      == 0) idx_status = i;
     }
 
     // Stream JSON array
@@ -171,6 +172,7 @@ static void installLogRoutes(
       double ml    = getD(idx_ml);
       int duty     = (int)getI(idx_duty);
       int dir      = (int)getI(idx_dir);
+      String status    = getS(idx_status);
 
       // Optional: normalize ts to ISO by replacing ' ' with 'T' (commented out)
       // ts.replace(' ', 'T'); // and optionally append 'Z'
@@ -189,6 +191,7 @@ static void installLogRoutes(
       res->printf(",\"ml\":%.3f", ml);
       res->printf(",\"duty\":%d", duty);
       res->printf(",\"dir\":%d", dir);
+      res->printf(",\"status\":\"%s\"", jsonEscape(status).c_str());
       res->print("}");
     }
     res->print("\n]\n");

@@ -7,7 +7,8 @@ namespace Logger {
   bool clear();                                // wipe & recreate header
   bool exists();                               // does /logs.csv exist?
   String tail(size_t maxLines);                // last N lines (text)
-  void logEvent(const char* event, int pump, float runtime, float mlps,float ml, int duty, int direction);
+
+  void logEvent(const char* event, int pump, float runtime, float mlps,float ml, int duty, int direction, const char* status = "--");
 }
 
 void ensureHeader();

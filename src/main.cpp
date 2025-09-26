@@ -29,8 +29,8 @@ static const PumpPins PINS[NUM_PUMPS] = {
   char wifiSsid[32]   = "PHD1 2.4";
   char wifiPass[64]   = "Andrew1Laura2";
   char hostname[32]   = "esp32-doser";
-
-
+  const char* I = "Info";
+  const char* setcomp = "setup complete";
 
 
 static void connectWiFi() {
@@ -46,6 +46,7 @@ static void connectWiFi() {
   Serial.println();
   if (WiFi.status() == WL_CONNECTED) {
     logInfo("WiFi OK: %s  IP=%s", WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
+
   } else {
     logWarn("WiFi connect failed, starting AP");
     WiFi.mode(WIFI_AP);
@@ -86,17 +87,19 @@ void setup() {
   printCurrentTimeInfo();
   Serial.printf("secSinceMidnight = %u\n", secondsSinceMidnight());
 
-Logger::begin();        // create /logs.csv with header if missing
+  Logger::begin();        // create /logs.csv with header if missing
   pumpCtl.begin(PINS);
   scheduler.begin();
   webserverBegin();
+
+  Logger::logEvent(I, 999, 0,0,0,0,0,setcomp);
 }
 
 void loop() {
   pumpCtl.loop();
-  delay(1);
+  delay(10);
   scheduler.loop();
-  delay(1);
+  delay(10);
   webserverLoop();
   delay(10);
 }

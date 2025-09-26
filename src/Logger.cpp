@@ -4,7 +4,7 @@
 #include <LittleFS.h>
 #include <FS.h>
 #include <time.h>
-#include "LogRoutes.h"
+//#include "LogRoutes.h"
 namespace {
   const char* kLogPath = "/logs.csv";
 }
@@ -15,7 +15,7 @@ namespace {
     if (LittleFS.exists(kLogPath)) return;
     File f = LittleFS.open(kLogPath, "w");
     if (!f) return;
-    f.println(F("ts,uptime_ms,event,pump,runtime,mlps,ml,duty,dir"));
+    f.println(F("ts,uptime_ms,event,pump,runtime,mlps,ml,duty,dir,status"));
     f.close();
   }
   
@@ -56,7 +56,7 @@ String Logger::tail(size_t maxLines) {
   return out;
 }
 
-void Logger::logEvent(const char* event, int pump, float runtime, float mlps,float ml, int duty, int direction) {
+void Logger::logEvent(const char* event, int pump, float runtime, float mlps,float ml, int duty, int direction, const char* status) {
   ensureHeader();
   File f = LittleFS.open(kLogPath, "a");
   if (!f) return;
@@ -69,10 +69,8 @@ void Logger::logEvent(const char* event, int pump, float runtime, float mlps,flo
   char tsbuf[20];                               // "YYYY-MM-DD HH:MM:SS" = 19 + NUL
   strftime(tsbuf, sizeof(tsbuf), "%Y-%m-%d %H:%M:%S", &tmLocal);
 
-
-
-  f.printf("%s,%lu,%s,%d,%.2f,%.2f,%.2f,%d,%d\n",
-           tsbuf, up, event, pump,  runtime, mlps, ml, duty, direction);
+  f.printf("%s,%lu,%s,%d,%.2f,%.2f,%.2f,%d,%d,%s\n",
+           tsbuf, up, event, pump,  runtime, mlps, ml, duty, direction,status);
   f.close();
 }
 

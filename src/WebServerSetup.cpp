@@ -251,11 +251,11 @@ server.on("/api/logs/tail", HTTP_GET, [](AsyncWebServerRequest* req){
 
 // Clear logs
 server.on("/api/logs/clear", HTTP_GET, [](AsyncWebServerRequest* req){
-  Serial.println("Before Clear*");
-  Logger::clear();
-  Serial.println("after Clear**");
-  req->send(200, "text/plain; charset=utf-8", "ok");
-});
+    Serial.println("Before Clear*");
+    Logger::clear();
+    Serial.println("after Clear**");
+    req->send(200, "text/plain; charset=utf-8", "ok");
+  });
 
 
   // OTA
